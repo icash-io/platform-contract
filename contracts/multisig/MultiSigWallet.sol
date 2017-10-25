@@ -147,6 +147,7 @@ contract MultiSigWallet {
         onlyWallet
         ownerExists(owner)
         ownerDoesNotExist(newOwner)
+        notNull(newOwner)
     {
         for (uint i = 0; i < owners.length; i++) {
             if (owners[i] == owner) {
@@ -216,13 +217,14 @@ contract MultiSigWallet {
         notExecuted(transactionId)
     {
         if (isConfirmed(transactionId)) {
-            Transaction storage currentTx = transactions[transactionId];
-            currentTx.executed = true;
-            if (currentTx.destination.call.value(currentTx.value)(currentTx.data))
-                Execution(transactionId);
+            Transaction storage currentTx = transactions[transactionId];            
+            if (currentTx.destination.call.value(currentTx.value)(currentTx.data)) {
+                currentTx.executed = true;
+                Execution(transactionId);                
+            }
             else {
-                ExecutionFailure(transactionId);
                 currentTx.executed = false;
+                ExecutionFailure(transactionId);                
             }
         }
     }
