@@ -63,7 +63,7 @@ contract('SaleTracker', async (accounts) => {
     let instance = await SaleTracker.new(false)
     await instance.unpause()
 
-    await instance.purchase(1, {from: accounts[9]})
+    await instance.purchase(1, {from: accounts[9], value: convertToBaseUnits(1)})
 
     // Verify it doesn't allow no payload
     try {
@@ -75,7 +75,7 @@ contract('SaleTracker', async (accounts) => {
 
     // Verify it doesn't allow 0 as payload
     try {
-      await instance.purchase(0, {from: accounts[9]})
+      await instance.purchase(0, {from: accounts[9], value: convertToBaseUnits(1)})
       assert.fail('No payload should fail')
     } catch (error) {
       assertJump(error)
@@ -94,11 +94,11 @@ contract('SaleTracker', async (accounts) => {
     console.log(trimmedHash)
 
     // Validate it allows the purchase
-    await instance.purchase(trimmedHash, {from: accounts[9]})
+    await instance.purchase(trimmedHash, {from: accounts[9], value: convertToBaseUnits(1)})
 
     // Validate the same hash fails from another account
     try {
-      await instance.purchase(trimmedHash, {from: accounts[2]})
+      await instance.purchase(trimmedHash, {from: accounts[2], value: convertToBaseUnits(1)})
       assert.fail('No payload should fail')
     } catch (error) {
       assertJump(error)
@@ -122,5 +122,40 @@ contract('SaleTracker', async (accounts) => {
     await instance.setEnforceAddressMatch(false)
 
     assert.equal(await instance.enforceAddressMatch(), false, 'Enforce should be false')
+  })
+
+  it('should track purchaser addresses', async () => {
+    let instance = await SaleTracker.new(false)
+    await instance.unpause()
+
+    // Ensure the purchaser count is 0 to start off with
+    assert.equal((await instance.getPurchaserAddressCount()).toNumber(), 0)
+
+    // Pay in once and ensure the values are expected
+    await instance.purchase(100, {from: accounts[9], value: convertToBaseUnits(1)})
+    assert.equal((await instance.getPurchaserAddressCount()).toNumber(), 1)
+    assert.equal(await instance.purchaserAddresses(0), accounts[9])
+
+    // Make a second call from the same address and ensure the count doesn't get updated
+    await instance.purchase(100, {from: accounts[9], value: convertToBaseUnits(1)})
+    assert.equal((await instance.getPurchaserAddressCount()).toNumber(), 1)
+
+    // Make a couple of other purchases
+    await instance.purchase(100, {from: accounts[8], value: convertToBaseUnits(5)})
+    await instance.purchase(100, {from: accounts[7], value: convertToBaseUnits(1)})
+    await instance.purchase(100, {from: accounts[7], value: convertToBaseUnits(2)})
+
+    // Validate values
+    assert.equal((await instance.getPurchaserAddressCount()).toNumber(), 3)
+
+    // Validate address list
+    assert.equal(await instance.purchaserAddresses(0), accounts[9])
+    assert.equal(await instance.purchaserAddresses(1), accounts[8])
+    assert.equal(await instance.purchaserAddresses(2), accounts[7])
+
+    // Validate amounts in tracking map
+    assert.equal(await instance.purchases(await instance.purchaserAddresses(0)), convertToBaseUnits(2))
+    assert.equal(await instance.purchases(await instance.purchaserAddresses(1)), convertToBaseUnits(5))
+    assert.equal(await instance.purchases(await instance.purchaserAddresses(2)), convertToBaseUnits(3))
   })
 })

@@ -18,6 +18,9 @@ contract SaleTracker is Pausable {
   // Tracking of purchase total in wei made per sending address
   mapping(address => uint256) public purchases;
 
+  // Tracking of purchaser addresses for lookup offline
+  address[] public purchaserAddresses;
+
   // Flag to enforce payments source address matching the payment code
   bool public enforceAddressMatch;
 
@@ -28,12 +31,15 @@ contract SaleTracker is Pausable {
   }
 
   // Setter for the enforce flag - only updatable by the owner
-  function setEnforceAddressMatch(bool _enforceAddressMatch) onlyOwner {
+  function setEnforceAddressMatch(bool _enforceAddressMatch) onlyOwner public {
     enforceAddressMatch = _enforceAddressMatch;
   }
 
   // Purchase function allows incoming payments when not paused - requires payment code
-  function purchase(bytes8 paymentCode) whenNotPaused payable {
+  function purchase(bytes8 paymentCode) whenNotPaused public payable {
+
+    // Verify they have sent ETH in
+    require(msg.value != 0);
 
     // Verify the payment code was included
     require(paymentCode != 0);
@@ -48,8 +54,16 @@ contract SaleTracker is Pausable {
       require(calculatedPaymentCode == paymentCode);
     }
 
-    // Save off the purchase balance and trigger the event for tracking
-    purchases[msg.sender] = purchases[msg.sender].add(msg.value);
+    // Save off the existing purchase amount for this user
+    uint256 existingPurchaseAmount = purchases[msg.sender];
+
+    // If they have not purchased before (0 value), then save it off
+    if (existingPurchaseAmount == 0) {
+      purchaserAddresses.push(msg.sender);
+    }
+
+    // Add the new purchase value to the existing value already being tracked
+    purchases[msg.sender] = existingPurchaseAmount.add(msg.value);    
 
     // Transfer out to the owner wallet
     owner.transfer(msg.value);
@@ -59,8 +73,13 @@ contract SaleTracker is Pausable {
   }
 
   // Allows owner to sweep any ETH somehow trapped in the contract.
-  function sweep() onlyOwner {
+  function sweep() onlyOwner public {
     owner.transfer(this.balance);
+  }
+
+  // Get the number of addresses that have contributed to the sale
+  function getPurchaserAddressCount() public constant returns (uint) {
+    return purchaserAddresses.length;
   }
 
 }
